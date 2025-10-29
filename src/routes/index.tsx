@@ -96,7 +96,7 @@ async function runLatencyTest(
     ]);
   }
 
-  // Remove the first request as it's often slower due connection establishment and warmup
+  // Remove the first request as it's often slower due connection establishment, DNS lookup, and warmup
   return {
     privateTotalRoundTrips: privateTotalRoundTrips.slice(1),
     publicTotalRoundTrips: publicTotalRoundTrips.slice(1),
