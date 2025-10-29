@@ -54,55 +54,18 @@
     >
       <path d="m6 18 6-6m0 0 6-6m-6 6L6 6m6 6 6 6"></path>
     </symbol>
-    <symbol viewBox="0 0 200 200" id="Spinner">
-      <radialGradient
-        id="a11"
-        cx=".66"
-        fx=".66"
-        cy=".3125"
-        fy=".3125"
-        gradientTransform="scale(1.5)"
-      >
-        <stop offset="0" stop-color="#FF156D"></stop>
-        <stop offset=".3" stop-color="#FF156D" stop-opacity=".9"></stop>
-        <stop offset=".6" stop-color="#FF156D" stop-opacity=".6"></stop>
-        <stop offset=".8" stop-color="#FF156D" stop-opacity=".3"></stop>
-        <stop offset="1" stop-color="#FF156D" stop-opacity="0"></stop>
-      </radialGradient>
-      <circle
-        transform-origin="center"
-        fill="none"
-        stroke="url(#a11)"
-        stroke-width="15"
-        stroke-linecap="round"
-        stroke-dasharray="200 1000"
-        stroke-dashoffset="0"
-        cx="100"
-        cy="100"
-        r="70"
-      >
-        <animateTransform
-          type="rotate"
-          attributeName="transform"
-          calcMode="spline"
-          dur="2"
-          values="360;0"
-          keyTimes="0;1"
-          keySplines="0 0 1 1"
-          repeatCount="indefinite"
-        ></animateTransform>
-      </circle>
-      <circle
-        transform-origin="center"
-        fill="none"
-        opacity=".2"
-        stroke="#FF156D"
-        stroke-width="15"
-        stroke-linecap="round"
-        cx="100"
-        cy="100"
-        r="70"
-      ></circle>
+    <symbol
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      id="Spinner"
+    >
+      <path
+        d="M12 2v4m0 12v4M6 12H2m20 0h-4m1.078 7.078L16.25 16.25M19.078 5 16.25 7.828M4.922 19.078 7.75 16.25M4.922 5 7.75 7.828"
+      ></path>
     </symbol>
     <symbol
       viewBox="0 0 24 24"

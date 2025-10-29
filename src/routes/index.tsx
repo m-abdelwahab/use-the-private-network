@@ -1,10 +1,10 @@
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { ThemeToggle } from "@/components/misc/theme-toggle";
+import { BarChart } from "@/components/ui/bar-chart";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Divider } from "@/components/ui/divider";
-import { Heading } from "@/components/ui/heading";
 import { Icon } from "@/components/ui/icon";
 import { Link } from "@/components/ui/link";
 import { Text } from "@/components/ui/text";
@@ -12,10 +12,10 @@ import { Text } from "@/components/ui/text";
 export const Route = createFileRoute("/")({ component: App });
 
 type LatencyResults = {
-  privateTotalRoundTrip: number;
-  publicTotalRoundTrip: number;
-  privateQueryLatency: number; // server↔database round-trip
-  publicQueryLatency: number; // server↔database round-trip
+  privateTotalRoundTrips: number[];
+  publicTotalRoundTrips: number[];
+  privateQueryLatencies: number[];
+  publicQueryLatencies: number[];
 };
 
 type ApiResponse = {
@@ -24,44 +24,56 @@ type ApiResponse = {
 };
 
 async function runLatencyTest(): Promise<LatencyResults> {
-  // Public request
-  const publicStartTime = performance.now();
-  const publicResponse = await fetch(`/api/compare-latency-public`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-  const publicEndTime = performance.now();
-  if (!publicResponse.ok) {
-    const errorData = await publicResponse.json();
-    throw new Error(errorData.error || "Failed to test public network");
+  const NUM_QUERIES = 11;
+
+  const privateTotalRoundTrips: number[] = [];
+  const publicTotalRoundTrips: number[] = [];
+  const privateQueryLatencies: number[] = [];
+  const publicQueryLatencies: number[] = [];
+
+  // Run queries to each endpoint
+  for (let i = 0; i < NUM_QUERIES; i++) {
+    // Public request
+    const publicStartTime = performance.now();
+    const publicResponse = await fetch(`/api/compare-latency-public`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+    const publicEndTime = performance.now();
+    if (!publicResponse.ok) {
+      const errorData = await publicResponse.json();
+      throw new Error(errorData.error || "Failed to test public network");
+    }
+    const publicData = (await publicResponse.json()) as ApiResponse;
+    publicTotalRoundTrips.push(publicEndTime - publicStartTime);
+    publicQueryLatencies.push(publicData.queryLatency);
+
+    // Private request
+    const privateStartTime = performance.now();
+    const privateResponse = await fetch(`/api/compare-latency`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+    const privateEndTime = performance.now();
+    if (!privateResponse.ok) {
+      const errorData = await privateResponse.json();
+      throw new Error(errorData.error || "Failed to test private network");
+    }
+    const privateData = (await privateResponse.json()) as ApiResponse;
+    privateTotalRoundTrips.push(privateEndTime - privateStartTime);
+    privateQueryLatencies.push(privateData.queryLatency);
   }
-  const publicData = (await publicResponse.json()) as ApiResponse;
 
-  // Private request
-  const privateStartTime = performance.now();
-  const privateResponse = await fetch(`/api/compare-latency`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-  const privateEndTime = performance.now();
-  if (!privateResponse.ok) {
-    const errorData = await privateResponse.json();
-    throw new Error(errorData.error || "Failed to test private network");
-  }
-  const privateData = (await privateResponse.json()) as ApiResponse;
-
-  const privateTotalRoundTrip = privateEndTime - privateStartTime;
-  const publicTotalRoundTrip = publicEndTime - publicStartTime;
-
+  // Remove the first request as it's often slower due connection establishment and warmup
   return {
-    privateTotalRoundTrip,
-    publicTotalRoundTrip,
-    privateQueryLatency: privateData.queryLatency,
-    publicQueryLatency: publicData.queryLatency,
+    privateTotalRoundTrips: privateTotalRoundTrips.slice(1),
+    publicTotalRoundTrips: publicTotalRoundTrips.slice(1),
+    privateQueryLatencies: privateQueryLatencies.slice(1),
+    publicQueryLatencies: publicQueryLatencies.slice(1),
   };
 }
 
@@ -72,10 +84,10 @@ function App() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-4xl flex-col p-12">
-      <div className="flex-1">
+      <div className="flex-1 space-y-12">
         {/* Main Content */}
-        <div className="mb-12 space-y-4">
-          <h1 className="text-muted-high-contrast mb-2 text-3xl font-medium">
+        <div>
+          <h1 className="text-muted-high-contrast mb-2 text-3xl font-semibold">
             Use the Private Network
           </h1>
           <Text>
@@ -93,17 +105,15 @@ function App() {
             >
               full-stack TanStack Start
             </a>{" "}
-            project with two endpoints querying the same Postgres database. The
-            difference is one uses the private network and the other uses the
-            public URL over the open internet.
-          </Text>
-          <Text>
-            Both the app and database run in the same US-East (Virginia, USA)
-            region on Railway
+            project with two endpoints querying the same Postgres database
+            running a <code>SELECT 1</code> query 10 times. The difference is
+            one uses the private network and the other uses the public URL over
+            the open internet. Both the app and database run in the same US-East
+            (Virginia, USA) region on Railway
           </Text>
         </div>
         {/* Run Latency Test Button */}
-        <div className="mb-8">
+        <div>
           <Button
             onPress={() => mutation.mutate(undefined)}
             isDisabled={mutation.isPending}
@@ -142,76 +152,47 @@ function App() {
         {mutation.data && <ResultsSection results={mutation.data} />}
       </div>
       {/* Footer */}
-      <div>
-        <Divider className="mt-12 mb-8" />
-        <footer className="flex items-center justify-between gap-2">
-          <Text className="text-muted-base">
-            Deployed on{" "}
-            <Link
-              className="text-primary-base data-focus-visible:ring-primary-solid ring-offset-muted-app rounded-xs underline-offset-4 ring-offset-2 outline-none data-focus-visible:ring-2 data-hovered:underline"
-              href="https://railway.com?referralCode=thisismahmoud"
-            >
-              Railway
-            </Link>{" "}
-          </Text>
-          <ThemeToggle />
-        </footer>
-      </div>
+      <footer className="mt-12 mb-8 flex items-center justify-between gap-2">
+        <Text>
+          Deployed on{" "}
+          <Link
+            className="text-primary-base data-focus-visible:ring-primary-solid ring-offset-muted-app rounded-xs underline-offset-4 ring-offset-2 outline-none data-focus-visible:ring-2 data-hovered:underline"
+            href="https://railway.com?referralCode=thisismahmoud"
+          >
+            Railway
+          </Link>{" "}
+        </Text>
+        <ThemeToggle />
+      </footer>
     </div>
   );
 }
 
 function ResultsSection({ results }: { results: LatencyResults }) {
-  const privateTotal = results.privateTotalRoundTrip;
-  const publicTotal = results.publicTotalRoundTrip;
-  const winnerIsPrivate = privateTotal <= publicTotal;
-  const winnerLabel = winnerIsPrivate
-    ? "the private network"
-    : "the public network";
-  const loserLabel = winnerIsPrivate
-    ? "the public network"
-    : "the private network";
-  const winnerMs = winnerIsPrivate ? privateTotal : publicTotal;
-  const loserMs = winnerIsPrivate ? publicTotal : privateTotal;
-  const percentFaster = ((loserMs - winnerMs) / loserMs) * 100;
-
   return (
-    <div className="space-y-6">
-      <Heading className="text-2xl" level={2}>
+    <div className="space-y-4">
+      <h2 className="text-muted-high-contrast text-2xl font-semibold">
         Results
-      </Heading>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      </h2>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ResultCard
           title="Private Network"
           totalLabelClass="text-primary-base"
-          totalMs={results.privateTotalRoundTrip}
-          queryLatencyMs={results.privateQueryLatency}
+          totalRoundTrips={results.privateTotalRoundTrips}
+          queryLatencies={results.privateQueryLatencies}
+          comparisonTotalRoundTrips={results.publicTotalRoundTrips}
+          comparisonQueryLatencies={results.publicQueryLatencies}
+          color="var(--color-primary-base)"
         />
         <ResultCard
           title="Public Network"
           totalLabelClass="text-warning-base"
-          totalMs={results.publicTotalRoundTrip}
-          queryLatencyMs={results.publicQueryLatency}
+          totalRoundTrips={results.publicTotalRoundTrips}
+          queryLatencies={results.publicQueryLatencies}
+          comparisonTotalRoundTrips={results.privateTotalRoundTrips}
+          comparisonQueryLatencies={results.privateQueryLatencies}
+          color="var(--color-warning-base)"
         />
-      </div>
-      <div className="space-y-2">
-        <Heading level={2}>Performance Summary</Heading>
-        <Text>
-          For this run, {winnerLabel} is {percentFaster.toFixed(0)}% faster than{" "}
-          {loserLabel}.
-        </Text>
-
-        <Text>
-          Note that Total latency reflects both network and database
-          performance. Routing, regional load, and query patterns can affect
-          results.
-        </Text>
-
-        <Text>
-          Main takeaway: Use the private network for better security, no
-          egress/data transfer fees and better performance.
-        </Text>
       </div>
     </div>
   );
@@ -219,40 +200,161 @@ function ResultsSection({ results }: { results: LatencyResults }) {
 
 function ResultCard({
   title,
-  totalLabelClass,
-  totalMs,
-  queryLatencyMs,
+  totalRoundTrips,
+  queryLatencies,
+  comparisonTotalRoundTrips,
+  comparisonQueryLatencies,
+  color,
 }: {
   title: string;
   totalLabelClass: string;
-  totalMs: number;
-  queryLatencyMs: number;
+  totalRoundTrips: number[];
+  queryLatencies: number[];
+  comparisonTotalRoundTrips: number[];
+  comparisonQueryLatencies: number[];
+  color: string;
 }) {
+  const calculateAverage = (arr: number[]) =>
+    arr.reduce((sum, val) => sum + val, 0) / arr.length;
+
+  const calculateMedian = (arr: number[]) => {
+    const sorted = [...arr].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 === 0
+      ? (sorted[mid - 1] + sorted[mid]) / 2
+      : sorted[mid];
+  };
+
+  const calculateP95 = (arr: number[]) => {
+    const sorted = [...arr].sort((a, b) => a - b);
+    const index = Math.ceil(sorted.length * 0.95) - 1;
+    return sorted[index];
+  };
+
+  // Calculate stats for Server ↔ Database (query latencies)
+  const avgQuery = calculateAverage(queryLatencies);
+  const medianQuery = calculateMedian(queryLatencies);
+  const p95Query = calculateP95(queryLatencies);
+
+  // Calculate stats for Round-Trip Time
+  const avgTotal = calculateAverage(totalRoundTrips);
+  const medianTotal = calculateMedian(totalRoundTrips);
+  const p95Total = calculateP95(totalRoundTrips);
+
+  // Calculate comparison stats
+  const comparisonAvgQuery = calculateAverage(comparisonQueryLatencies);
+  const comparisonMedianQuery = calculateMedian(comparisonQueryLatencies);
+  const comparisonP95Query = calculateP95(comparisonQueryLatencies);
+  const comparisonAvgTotal = calculateAverage(comparisonTotalRoundTrips);
+  const comparisonMedianTotal = calculateMedian(comparisonTotalRoundTrips);
+  const comparisonP95Total = calculateP95(comparisonTotalRoundTrips);
+
+  // Calculate percentage differences
+  const calculatePercentDiff = (mine: number, theirs: number) => {
+    return ((theirs - mine) / theirs) * 100;
+  };
+
+  // Helper to render metric with optional percentage
+  const renderMetric = (mine: number, theirs: number) => {
+    const isWinner = mine < theirs;
+    const percentDiff = calculatePercentDiff(mine, theirs);
+
+    return (
+      <Text className="font-mono text-sm">
+        {isWinner && (
+          <span className="mr-1 text-green-600">
+            (+{Math.abs(percentDiff).toFixed(1)}%)
+          </span>
+        )}
+        {mine.toFixed(2)}ms
+      </Text>
+    );
+  };
+
+  // Prepare data for the bar chart
+  const chartData = totalRoundTrips.map((total, index) => ({
+    query: `${index + 1}`,
+    latency: Number(total.toFixed(2)),
+  }));
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
+        <CardTitle className="text-muted-high-contrast">{title}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
+          {/* Server ↔ Database Section */}
           <div>
-            <Text className="text-muted-base mb-2 text-sm font-medium">
-              Total Round-Trip Time
+            <Text className="text-muted-high-contrast mb-3 text-sm font-medium">
+              Server ↔ Database
             </Text>
-            <div className={`${totalLabelClass} text-3xl font-bold`}>
-              {totalMs.toFixed(2)} ms
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Text className="text-sm">Average</Text>
+                {renderMetric(avgQuery, comparisonAvgQuery)}
+              </div>
+              <div className="flex items-center justify-between">
+                <Text className="text-sm">Median</Text>
+                {renderMetric(medianQuery, comparisonMedianQuery)}
+              </div>
+              <div className="flex items-center justify-between">
+                <Text className="text-sm">p95</Text>
+                {renderMetric(p95Query, comparisonP95Query)}
+              </div>
             </div>
           </div>
+
           <Divider soft />
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Text className="text-muted-base text-sm">
-                Server ↔ Database
-              </Text>
-              <Text className="text-muted-high-contrast font-semibold">
-                {queryLatencyMs.toFixed(2)} ms
-              </Text>
+
+          {/* Round-Trip Time Section */}
+          <div>
+            <Text className="text-muted-high-contrast mb-3 text-sm font-medium">
+              Round-Trip Time
+            </Text>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Text className="text-sm">Average</Text>
+                {renderMetric(avgTotal, comparisonAvgTotal)}
+              </div>
+              <div className="flex items-center justify-between">
+                <Text className="text-sm">Median</Text>
+                {renderMetric(medianTotal, comparisonMedianTotal)}
+              </div>
+              <div className="flex items-center justify-between">
+                <Text className="text-sm">p95</Text>
+                {renderMetric(p95Total, comparisonP95Total)}
+              </div>
             </div>
+          </div>
+
+          <Divider soft />
+
+          {/* Chart Section */}
+          <div className="space-y-2">
+            <Text className="text-muted-high-contrast text-sm font-medium">
+              Round Trip Time Distribution(ms)
+            </Text>
+            <BarChart
+              data={chartData}
+              dataKey="query"
+              config={{
+                latency: {
+                  label: "Latency (ms)",
+                  color,
+                },
+              }}
+              valueFormatter={(value) => `${value}`}
+              legend={false}
+              className="h-56"
+              barCategoryGap={1}
+              barGap={1}
+              xAxisProps={{
+                dataKey: "query",
+                type: "category",
+                tick: { transform: "translate(0, 6)" },
+              }}
+            />
           </div>
         </div>
       </CardContent>

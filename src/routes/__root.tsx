@@ -43,7 +43,7 @@ export const Route = createRootRouteWithContext<{
       },
       {
         name: "og:image",
-        content: "https://use-the-private-network.up.railway.app/og-image.png",
+        content: "https://use-the-private-network.up.railway.app/og.png",
       },
       {
         name: "og:url",
@@ -65,7 +65,7 @@ export const Route = createRootRouteWithContext<{
       },
       {
         name: "twitter:image",
-        content: "https://use-the-private-network.up.railway.app/og-image.png",
+        content: "https://use-the-private-network.up.railway.app/og.png",
       },
       {
         name: "twitter:url",
