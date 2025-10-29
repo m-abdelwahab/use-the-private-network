@@ -148,7 +148,7 @@ function App() {
             running a <code>SELECT 1</code> query 10 times. The difference is
             one uses the private network and the other uses the public URL over
             the open internet. Both the app and database run in the same US-East
-            (Virginia, USA) region
+            (Virginia, USA) region{" "}
             <Link
               className="text-primary-base data-focus-visible:ring-primary-solid ring-offset-muted-app rounded-xs underline-offset-4 ring-offset-2 outline-none data-focus-visible:ring-2 data-hovered:underline"
               href="https://railway.com?referralCode=thisismahmoud"
