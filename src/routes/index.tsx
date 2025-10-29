@@ -23,6 +23,25 @@ type ApiResponse = {
   apiProcessingTime: number;
 };
 
+// Statistical utility functions
+function calculateAverage(arr: number[]): number {
+  return arr.reduce((sum, val) => sum + val, 0) / arr.length;
+}
+
+function calculateMedian(arr: number[]): number {
+  const sorted = [...arr].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid];
+}
+
+function calculateP95(arr: number[]): number {
+  const sorted = [...arr].sort((a, b) => a - b);
+  const index = Math.ceil(sorted.length * 0.95) - 1;
+  return sorted[index];
+}
+
 async function runLatencyTest(): Promise<LatencyResults> {
   const NUM_QUERIES = 11;
 
@@ -31,41 +50,46 @@ async function runLatencyTest(): Promise<LatencyResults> {
   const privateQueryLatencies: number[] = [];
   const publicQueryLatencies: number[] = [];
 
-  // Run queries to each endpoint
+  // Run queries to each endpoint in parallel for better performance
   for (let i = 0; i < NUM_QUERIES; i++) {
-    // Public request
-    const publicStartTime = performance.now();
-    const publicResponse = await fetch(`/api/compare-latency-public`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-    const publicEndTime = performance.now();
-    if (!publicResponse.ok) {
-      const errorData = await publicResponse.json();
-      throw new Error(errorData.error || "Failed to test public network");
-    }
-    const publicData = (await publicResponse.json()) as ApiResponse;
-    publicTotalRoundTrips.push(publicEndTime - publicStartTime);
-    publicQueryLatencies.push(publicData.queryLatency);
-
-    // Private request
-    const privateStartTime = performance.now();
-    const privateResponse = await fetch(`/api/compare-latency`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-    const privateEndTime = performance.now();
-    if (!privateResponse.ok) {
-      const errorData = await privateResponse.json();
-      throw new Error(errorData.error || "Failed to test private network");
-    }
-    const privateData = (await privateResponse.json()) as ApiResponse;
-    privateTotalRoundTrips.push(privateEndTime - privateStartTime);
-    privateQueryLatencies.push(privateData.queryLatency);
+    await Promise.all([
+      // Public request
+      (async () => {
+        const publicStartTime = performance.now();
+        const publicResponse = await fetch(`/api/compare-latency-public`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+        const publicEndTime = performance.now();
+        if (!publicResponse.ok) {
+          const errorData = await publicResponse.json();
+          throw new Error(errorData.error || "Failed to test public network");
+        }
+        const publicData = (await publicResponse.json()) as ApiResponse;
+        publicTotalRoundTrips.push(publicEndTime - publicStartTime);
+        publicQueryLatencies.push(publicData.queryLatency);
+      })(),
+      // Private request
+      (async () => {
+        const privateStartTime = performance.now();
+        const privateResponse = await fetch(`/api/compare-latency`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+        const privateEndTime = performance.now();
+        if (!privateResponse.ok) {
+          const errorData = await privateResponse.json();
+          throw new Error(errorData.error || "Failed to test private network");
+        }
+        const privateData = (await privateResponse.json()) as ApiResponse;
+        privateTotalRoundTrips.push(privateEndTime - privateStartTime);
+        privateQueryLatencies.push(privateData.queryLatency);
+      })(),
+    ]);
   }
 
   // Remove the first request as it's often slower due connection establishment and warmup
@@ -177,7 +201,6 @@ function ResultsSection({ results }: { results: LatencyResults }) {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ResultCard
           title="Private Network"
-          totalLabelClass="text-primary-base"
           totalRoundTrips={results.privateTotalRoundTrips}
           queryLatencies={results.privateQueryLatencies}
           comparisonTotalRoundTrips={results.publicTotalRoundTrips}
@@ -186,7 +209,6 @@ function ResultsSection({ results }: { results: LatencyResults }) {
         />
         <ResultCard
           title="Public Network"
-          totalLabelClass="text-warning-base"
           totalRoundTrips={results.publicTotalRoundTrips}
           queryLatencies={results.publicQueryLatencies}
           comparisonTotalRoundTrips={results.privateTotalRoundTrips}
@@ -207,30 +229,12 @@ function ResultCard({
   color,
 }: {
   title: string;
-  totalLabelClass: string;
   totalRoundTrips: number[];
   queryLatencies: number[];
   comparisonTotalRoundTrips: number[];
   comparisonQueryLatencies: number[];
   color: string;
 }) {
-  const calculateAverage = (arr: number[]) =>
-    arr.reduce((sum, val) => sum + val, 0) / arr.length;
-
-  const calculateMedian = (arr: number[]) => {
-    const sorted = [...arr].sort((a, b) => a - b);
-    const mid = Math.floor(sorted.length / 2);
-    return sorted.length % 2 === 0
-      ? (sorted[mid - 1] + sorted[mid]) / 2
-      : sorted[mid];
-  };
-
-  const calculateP95 = (arr: number[]) => {
-    const sorted = [...arr].sort((a, b) => a - b);
-    const index = Math.ceil(sorted.length * 0.95) - 1;
-    return sorted[index];
-  };
-
   // Calculate stats for Server ↔ Database (query latencies)
   const avgQuery = calculateAverage(queryLatencies);
   const medianQuery = calculateMedian(queryLatencies);
@@ -333,7 +337,7 @@ function ResultCard({
           {/* Chart Section */}
           <div className="space-y-2">
             <Text className="text-muted-high-contrast text-sm font-medium">
-              Round Trip Time Distribution(ms)
+              Round Trip Time Distribution (ms)
             </Text>
             <BarChart
               data={chartData}
