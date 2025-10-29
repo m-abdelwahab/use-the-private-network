@@ -4,6 +4,9 @@ A live demo comparing the latency of connecting colocated services on Railway wi
 
 🌐 **Live Demo:** [use-the-private-network.up.railway.app](https://use-the-private-network.up.railway.app)
 
+<img width="1501" height="2048" alt="image" src="https://github.com/user-attachments/assets/9edca7dc-0a20-44eb-a6a0-6d39a57b9d94" />
+
+
 ## Overview
 
 This project demonstrates the performance benefits of using Railway's private networking feature. When you colocate services on Railway, you can connect them using private networking, which is:
