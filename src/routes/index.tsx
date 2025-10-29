@@ -1,5 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import * as React from "react";
 import { ThemeToggle } from "@/components/misc/theme-toggle";
 import { BarChart } from "@/components/ui/bar-chart";
 import { Button } from "@/components/ui/button";
@@ -42,7 +43,9 @@ function calculateP95(arr: number[]): number {
   return sorted[index];
 }
 
-async function runLatencyTest(): Promise<LatencyResults> {
+async function runLatencyTest(
+  onProgress?: (current: number, total: number) => void,
+): Promise<LatencyResults> {
   const NUM_QUERIES = 11;
 
   const privateTotalRoundTrips: number[] = [];
@@ -52,6 +55,7 @@ async function runLatencyTest(): Promise<LatencyResults> {
 
   // Run queries to each endpoint in parallel for better performance
   for (let i = 0; i < NUM_QUERIES; i++) {
+    onProgress?.(i + 1, NUM_QUERIES);
     await Promise.all([
       // Public request
       (async () => {
@@ -102,8 +106,19 @@ async function runLatencyTest(): Promise<LatencyResults> {
 }
 
 function App() {
+  const [progress, setProgress] = React.useState<{
+    current: number;
+    total: number;
+  } | null>(null);
+
   const mutation = useMutation({
-    mutationFn: runLatencyTest,
+    mutationFn: () =>
+      runLatencyTest((current, total) => {
+        setProgress({ current, total });
+      }),
+    onSettled: () => {
+      setProgress(null);
+    },
   });
 
   return (
@@ -139,14 +154,16 @@ function App() {
         {/* Run Latency Test Button */}
         <div>
           <Button
-            onPress={() => mutation.mutate(undefined)}
+            onPress={() => mutation.mutate()}
             isDisabled={mutation.isPending}
             size="lg"
           >
             {mutation.isPending ? (
               <span className="inline-flex items-center gap-2">
                 <Icon name="Spinner" className="size-4 animate-spin" />
-                Running Test...
+                {progress
+                  ? `Running Test (${progress.current}/${progress.total})...`
+                  : "Running Test..."}
               </span>
             ) : (
               "Run Latency Test"
